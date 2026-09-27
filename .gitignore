@@ -1,0 +1,21 @@
+# Frontend
+jobportal-frontend/node_modules/
+jobportal-frontend/dist/
+
+# Backend
+jobportal-backend/target/
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
