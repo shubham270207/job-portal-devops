@@ -47,6 +47,9 @@ public class AuthController {
                 request.getPassword()
         );
 
+        // Hide password from API response
+        user.setPassword(null);
+
         return ResponseEntity.ok(user);
     }
 
