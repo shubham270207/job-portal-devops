@@ -40,6 +40,32 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy to EC2') {
+            steps {
+                sh '''
+                    docker pull venom45/jobportal-backend:latest
+                    docker pull venom45/jobportal-frontend:latest
+
+                    docker rm -f jobportal-backend-container || true
+                    docker rm -f jobportal-frontend-container || true
+
+                    docker run -d \
+                      --name jobportal-backend-container \
+                      --network jobportal-network \
+                      -p 8081:8080 \
+                      -e SPRING_MONGODB_URI=mongodb://jobportal-mongodb:27017/jobportal \
+                      venom45/jobportal-backend:latest
+
+                    docker run -d \
+                      --name jobportal-frontend-container \
+                      -p 3000:80 \
+                      venom45/jobportal-frontend:latest
+
+                    docker ps
+                '''
+            }
+        }
     }
 
     post {
