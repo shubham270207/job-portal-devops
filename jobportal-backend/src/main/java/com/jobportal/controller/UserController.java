@@ -19,6 +19,13 @@ public class UserController {
 
     @GetMapping
     public List<User> getAllUsers() {
-        return userService.getAllUsers();
+
+        List<User> users = userService.getAllUsers();
+
+        for (User user : users) {
+            user.setPassword(null);
+        }
+
+        return users;
     }
 }
