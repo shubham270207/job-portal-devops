@@ -1,30 +1,39 @@
-import api from "./services/api";
+import { useState } from "react";
+import ApplyModal from "./ApplyModal";
 
-function ApplyJob({ jobId }) {
-  const handleApply = async () => {
-    try {
-      const userEmail = localStorage.getItem("name");
+function ApplyJob({ job, jobId, isAlreadyApplied = false, onApplied }) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [applied, setApplied] = useState(isAlreadyApplied);
 
-      const application = {
-        userId: userEmail,
-        jobId: jobId,
-        applicationDate: new Date().toISOString(),
-        status: "APPLIED"
-      };
+  const jobObj = job || { id: jobId, title: "Position", company: "Company" };
 
-      await api.post("/applications", application);
-
-      alert("Application submitted successfully!");
-    } catch (error) {
-      console.log(error);
-      alert("Failed to apply for job");
-    }
-  };
+  if (applied) {
+    return (
+      <button className="btn-ghost" disabled style={{ opacity: 0.9, color: "#10b981", fontWeight: 600 }}>
+        ✓ Applied
+      </button>
+    );
+  }
 
   return (
-    <button onClick={handleApply}>
-      Apply Now
-    </button>
+    <>
+      <button
+        className="btn-primary"
+        onClick={() => setModalOpen(true)}
+      >
+        Apply Now
+      </button>
+
+      <ApplyModal
+        job={jobObj}
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onApplied={(appliedJobId) => {
+          setApplied(true);
+          if (onApplied) onApplied(appliedJobId);
+        }}
+      />
+    </>
   );
 }
 

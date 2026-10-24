@@ -1,121 +1,167 @@
 import { useEffect, useState } from "react";
-import api from "./services/api";
+import api, { getErrorMessage } from "./services/api";
 import ApplyJob from "./ApplyJob";
 
-function Jobs() {
+function Jobs({ role, refreshKey, onApplicationChanged }) {
+  const currentRole = role || localStorage.getItem("role") || "USER";
   const [jobs, setJobs] = useState([]);
+  const [appliedJobIds, setAppliedJobIds] = useState(new Set());
+  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const role = localStorage.getItem("role");
 
   const [searchTitle, setSearchTitle] = useState("");
 
-  const loadJobs = () => {
-    api.get("/jobs")
-      .then((response) => {
-        setJobs(response.data);
-        setMessage("Jobs loaded successfully!");
-      })
-      .catch((error) => {
-        console.log(error);
-        setMessage("Unable to load jobs");
-      });
+  const loadJobsAndApplications = async () => {
+    setLoading(true);
+    try {
+      const jobsRes = await api.get("/jobs");
+      setJobs(jobsRes.data || []);
+      setMessage("");
+
+      // Also fetch user's applications to see which jobs they already applied for
+      const userId = localStorage.getItem("email") || localStorage.getItem("name");
+      if (userId) {
+        try {
+          const appsRes = await api.get(`/applications/user/${encodeURIComponent(userId)}`);
+          if (Array.isArray(appsRes.data)) {
+            const ids = new Set(appsRes.data.map((a) => a.jobId));
+            setAppliedJobIds(ids);
+          }
+        } catch {
+          // Non-critical, ignore if applications fail to fetch
+        }
+      }
+    } catch (error) {
+      setMessage(getErrorMessage(error, "Unable to load jobs"));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const searchJobs = () => {
-    if (searchTitle.trim() === "") {
-      loadJobs();
+  const deleteJob = async (jobId) => {
+    if (!window.confirm("Are you sure you want to delete this job posting?")) {
       return;
     }
-  const deleteJob = async (jobId) => {
+
     try {
       await api.delete(`/jobs/${jobId}`);
-
       setMessage("Job deleted successfully!");
-
-      loadJobs();
+      loadJobsAndApplications();
     } catch (error) {
-      console.log(error);
-      setMessage("Unable to delete job");
+      setMessage(getErrorMessage(error, "Unable to delete job"));
     }
   };
 
-    api.get(`/jobs/search/title?title=${searchTitle}`)
-      .then((response) => {
-        setJobs(response.data);
-        setMessage("Search completed!");
-      })
-      .catch((error) => {
-        console.log(error);
-        setMessage("Unable to search jobs");
-      });
+  const searchJobs = async () => {
+    if (searchTitle.trim() === "") {
+      loadJobsAndApplications();
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await api.get(`/jobs/search/title?title=${encodeURIComponent(searchTitle.trim())}`);
+      setJobs(response.data || []);
+      setMessage("");
+    } catch (error) {
+      setMessage(getErrorMessage(error, "Unable to search jobs"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    loadJobs();
-  }, []);
+    loadJobsAndApplications();
+  }, [refreshKey]);
 
   return (
-    <div>
-      <h1>💼 Available Jobs</h1>
+    <div className="section">
+      <div className="section-header">
+        <h2 className="section-title">Available Jobs</h2>
+        <span className="section-count">{jobs.length} positions</span>
+      </div>
 
-      <p>{message}</p>
+      {message && (
+        <p className={`message ${message.toLowerCase().includes("success") || message.toLowerCase().includes("loaded") ? "message--success" : "message--error"}`}>
+          {message}
+        </p>
+      )}
 
-      {/* Search Jobs */}
-      <div>
+      <div className="search-bar">
         <input
           type="text"
-          placeholder="Search job title..."
+          placeholder="Search by job title…"
           value={searchTitle}
           onChange={(e) => setSearchTitle(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && searchJobs()}
         />
-
-        <button onClick={searchJobs}>
-          Search
+        <button className="btn-primary" onClick={searchJobs} disabled={loading}>
+          {loading ? "Searching…" : "Search"}
         </button>
-
-        <button onClick={loadJobs}>
-          Show All
+        <button className="btn-ghost" onClick={() => { setSearchTitle(""); loadJobsAndApplications(); }} disabled={loading}>
+          Reset
         </button>
       </div>
 
-      <hr />
-
-      {jobs.length === 0 ? (
-        <p>No jobs available.</p>
+      {loading ? (
+        <div className="empty-state">
+          <p className="empty-state-text">Loading jobs…</p>
+        </div>
+      ) : jobs.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">📭</div>
+          <p className="empty-state-text">No jobs match your criteria</p>
+        </div>
       ) : (
-        jobs.map((job) => (
-          <div className="job-card" key={job.id}>
-            <h2 className="job-title">{job.title}</h2>
+        <div className="job-list">
+          {jobs.map((job) => (
+            <div className="job-card" key={job.id}>
+              <h3 className="job-title">{job.title}</h3>
 
-            <p>
-              <b>Company:</b> {job.company}
-            </p>
+              <div className="job-meta">
+                <span className="job-meta-item">
+                  <b>Company</b> {job.company}
+                </span>
+                <span className="job-meta-item">
+                  <b>Location</b> {job.location}
+                </span>
+                <span className="job-meta-item">
+                  <b>Salary</b> {job.salary}
+                </span>
+                <span className="job-meta-item">
+                  <b>Skills</b> {job.skills}
+                </span>
+              </div>
 
-            <p>
-              <b>Location:</b> {job.location}
-            </p>
+              {job.description && (
+                <p className="job-description">{job.description}</p>
+              )}
 
-            <p>
-              <b>Salary:</b> {job.salary}
-            </p>
-
-            <p>
-              <b>Skills:</b> {job.skills}
-            </p>
-
-            <p>
-              <b>Description:</b> {job.description}
-            </p>
-            <ApplyJob jobId={job.id} />
-            {role === "ADMIN" && (
-              <button onClick={() => deleteJob(job.id)}>
-                Delete Job
-              </button>
-            )}
-
-            <hr />
-          </div>
-        ))
+              <div className="job-actions">
+                {currentRole === "ADMIN" ? (
+                  <div className="admin-job-actions">
+                    <span className="admin-badge-indicator">Posting Active</span>
+                    <button className="btn-danger" onClick={() => deleteJob(job.id)}>
+                      Delete Posting
+                    </button>
+                  </div>
+                ) : (
+                  <ApplyJob
+                    job={job}
+                    jobId={job.id}
+                    isAlreadyApplied={appliedJobIds.has(job.id)}
+                    onApplied={() => {
+                      setAppliedJobIds((prev) => new Set([...prev, job.id]));
+                      if (onApplicationChanged) {
+                        onApplicationChanged();
+                      }
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

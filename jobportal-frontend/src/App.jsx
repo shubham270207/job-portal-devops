@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 import Login from "./Login";
 import Register from "./Register";
@@ -6,6 +6,8 @@ import api from "./services/api";
 import Jobs from "./Jobs";
 import AddJob from "./AddJob";
 import MyApplications from "./MyApplications";
+import AdminApplications from "./AdminApplications";
+import UserDirectory from "./UserDirectory";
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(
@@ -13,78 +15,120 @@ function App() {
   );
   const [showRegister, setShowRegister] = useState(false);
 
-  const [users, setUsers] = useState([]);
+  const [role, setRole] = useState(localStorage.getItem("role") || "USER");
+  const [activeTab, setActiveTab] = useState(
+    localStorage.getItem("role") === "ADMIN" ? "pipeline" : "jobs"
+  );
+
   const [message, setMessage] = useState("");
 
-  const name = localStorage.getItem("name");
-  const role = localStorage.getItem("role");
+  // Pending applications count for Admin badge
+  const [pendingAppsCount, setPendingAppsCount] = useState(0);
 
-  const loadDashboard = () => {
-    api.get("/users")
-      .then((response) => {
-        setUsers(response.data);
-        setMessage("Dashboard loaded successfully!");
-      })
-      .catch(() => {
-        setMessage("Session expired. Please login again.");
-      });
+  // Keys used to trigger refresh in child components
+  const [jobsRefreshKey, setJobsRefreshKey] = useState(0);
+  const [appsRefreshKey, setAppsRefreshKey] = useState(0);
+
+  const name = localStorage.getItem("name") || "User";
+  const email = localStorage.getItem("email") || "";
+
+  const triggerJobsRefresh = () => setJobsRefreshKey((k) => k + 1);
+  const triggerAppsRefresh = () => {
+    setAppsRefreshKey((k) => k + 1);
+    fetchPendingCount();
   };
+
+  const fetchPendingCount = async () => {
+    if (!loggedIn) return;
+    // Only admins can fetch all applications
+    const currentRole = localStorage.getItem("role");
+    if (currentRole !== "ADMIN") return;
+    try {
+      const res = await api.get("/applications");
+      if (Array.isArray(res.data)) {
+        const pending = res.data.filter(
+          (a) => !a.status || a.status === "APPLIED" || a.status === "PENDING"
+        ).length;
+        setPendingAppsCount(pending);
+      }
+    } catch {
+      // Non-critical background fetch
+    }
+  };
+
+  useEffect(() => {
+    if (loggedIn) {
+      fetchPendingCount();
+    }
+  }, [loggedIn, appsRefreshKey]);
+
+
 
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("name");
+    localStorage.removeItem("email");
     localStorage.removeItem("role");
+    localStorage.removeItem("userId");
     setLoggedIn(false);
+    setMessage("");
   };
 
   if (!loggedIn) {
-    if (showRegister) {
-      return (
-        <div>
-          <Register />
-
-          <button onClick={() => setShowRegister(false)}>
-            Go to Login
-          </button>
-        </div>
-      );
-    }
-
     return (
-      <div>
-        <Login
-          onLogin={() => {
-            setLoggedIn(true);
-            setTimeout(loadDashboard, 100);
-          }}
-        />
-
-        <button onClick={() => setShowRegister(true)}>
-          Create New Account
-        </button>
+      <div className="auth-wrapper">
+        <div>
+          {showRegister ? (
+            <>
+              <Register onRegistered={() => setShowRegister(false)} />
+              <div className="auth-toggle">
+                Already have an account?{" "}
+                <button onClick={() => setShowRegister(false)}>
+                  Sign in
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Login
+                onLogin={(chosenRole) => {
+                  const storedRole = chosenRole || localStorage.getItem("role") || "USER";
+                  setLoggedIn(true);
+                  setRole(storedRole);
+                  setActiveTab(storedRole === "ADMIN" ? "pipeline" : "jobs");
+                  setMessage("");
+                }}
+              />
+              <div className="auth-toggle">
+                Don&apos;t have an account?{" "}
+                <button onClick={() => setShowRegister(true)}>
+                  Create one
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="app-shell">
+      {/* Top Header */}
       <div className="dashboard-header">
         <div>
-          <h1>💼 Job Portal</h1>
-          <p>
-            Welcome, <b>{name}</b> 👋
+          <div className="portal-branding">
+            <h1>Job Portal</h1>
+            <span className={`role-badge ${role === "ADMIN" ? "role-badge--admin" : ""}`}>
+              {role === "ADMIN" ? "Employer / Admin" : "Candidate"}
+            </span>
+          </div>
+          <p className="welcome-text">
+            Welcome, <b>{name}</b> {email && <span style={{ opacity: 0.75 }}>({email})</span>}
           </p>
-          <span className="role-badge">{role}</span>
         </div>
 
-        <div>
-          <button
-            className="load-button"
-            onClick={loadDashboard}
-          >
-            Load Users
-          </button>
-
+        <div className="header-actions">
           <button
             className="logout-button"
             onClick={logout}
@@ -94,23 +138,109 @@ function App() {
         </div>
       </div>
 
-      <p>{message}</p>
+      {message && (
+        <p className={`message ${message.toLowerCase().includes("success") ? "message--success" : "message--error"}`}>
+          {message}
+        </p>
+      )}
 
-      <hr />
+      {/* Navigation Tabs */}
+      <div className="nav-tabs-bar">
+        {role === "ADMIN" ? (
+          <>
+            <button
+              className={`nav-tab-item ${activeTab === "pipeline" ? "nav-tab-item--active" : ""}`}
+              onClick={() => setActiveTab("pipeline")}
+            >
+              📋 Candidate Applications
+              {pendingAppsCount > 0 && (
+                <span className="nav-tab-badge">{pendingAppsCount} pending</span>
+              )}
+            </button>
 
-      <h2>Registered Users</h2>
-      {role === "ADMIN" && <AddJob />}
-      <Jobs />
-      <MyApplications />
+            <button
+              className={`nav-tab-item ${activeTab === "jobs" ? "nav-tab-item--active" : ""}`}
+              onClick={() => setActiveTab("jobs")}
+            >
+              💼 Manage Job Postings
+            </button>
 
-      {users.map((user) => (
-        <div key={user.id}>
-          <p><b>Name:</b> {user.name}</p>
-          <p><b>Email:</b> {user.email}</p>
-          <p><b>Role:</b> {user.role}</p>
-          <hr />
-        </div>
-      ))}
+            <button
+              className={`nav-tab-item ${activeTab === "post-job" ? "nav-tab-item--active" : ""}`}
+              onClick={() => setActiveTab("post-job")}
+            >
+              ➕ Post New Job
+            </button>
+
+            <button
+              className={`nav-tab-item ${activeTab === "users" ? "nav-tab-item--active" : ""}`}
+              onClick={() => setActiveTab("users")}
+            >
+              👥 User Management
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className={`nav-tab-item ${activeTab === "jobs" ? "nav-tab-item--active" : ""}`}
+              onClick={() => setActiveTab("jobs")}
+            >
+              💼 Explore Jobs
+            </button>
+
+            <button
+              className={`nav-tab-item ${activeTab === "my-applications" ? "nav-tab-item--active" : ""}`}
+              onClick={() => setActiveTab("my-applications")}
+            >
+              📋 My Applications
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Tab Contents */}
+      <div className="tab-content-area">
+        {/* Candidate & Admin Jobs view */}
+        {activeTab === "jobs" && (
+          <Jobs
+            role={role}
+            refreshKey={jobsRefreshKey}
+            onApplicationChanged={triggerAppsRefresh}
+          />
+        )}
+
+        {/* Candidate Applications view */}
+        {role === "USER" && activeTab === "my-applications" && (
+          <MyApplications
+            refreshKey={appsRefreshKey}
+          />
+        )}
+
+        {/* Admin Candidate Pipeline view */}
+        {role === "ADMIN" && activeTab === "pipeline" && (
+          <AdminApplications
+            refreshKey={appsRefreshKey}
+            onStatusUpdated={() => {
+              triggerAppsRefresh();
+            }}
+          />
+        )}
+
+        {/* Admin Post Job view */}
+        {role === "ADMIN" && activeTab === "post-job" && (
+          <AddJob
+            onJobAdded={() => {
+              triggerJobsRefresh();
+              setActiveTab("jobs");
+            }}
+          />
+        )}
+
+        {/* Admin Dedicated User Management page */}
+        {role === "ADMIN" && activeTab === "users" && (
+          <UserDirectory />
+        )}
+      </div>
     </div>
   );
 }

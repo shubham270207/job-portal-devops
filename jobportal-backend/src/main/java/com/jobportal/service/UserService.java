@@ -25,6 +25,14 @@ public class UserService {
             String name,
             String email,
             String password) {
+        return register(name, email, password, "USER");
+    }
+
+    public User register(
+            String name,
+            String email,
+            String password,
+            String role) {
 
         User user = new User();
 
@@ -35,7 +43,7 @@ public class UserService {
                 passwordEncoder.encode(password)
         );
 
-        user.setRole("USER");
+        user.setRole(role != null && !role.trim().isEmpty() ? role.toUpperCase() : "USER");
 
         return userRepository.save(user);
     }
@@ -49,5 +57,9 @@ public class UserService {
 
     public List<User> getAllUsers() {
         return userRepository.findAll();
+    }
+
+    public User save(User user) {
+        return userRepository.save(user);
     }
 }

@@ -10,5 +10,9 @@ public interface ApplicationRepository
 
     List<Application> findByUserId(String userId);
 
+    List<Application> findByApplicantEmail(String applicantEmail);
+
+    List<Application> findByUserIdOrApplicantEmail(String userId, String applicantEmail);
+
     List<Application> findByJobId(String jobId);
 }

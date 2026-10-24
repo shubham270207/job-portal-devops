@@ -1,5 +1,6 @@
 package com.jobportal.auth;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Service;
@@ -17,10 +18,11 @@ public class JwtService {
             SECRET.getBytes()
     );
 
-    public String generateToken(String email) {
+    public String generateToken(String email, String role) {
 
         return Jwts.builder()
                 .subject(email)
+                .claim("role", role)
                 .issuedAt(new Date())
                 .expiration(
                         new Date(System.currentTimeMillis() + 86400000)
@@ -30,12 +32,18 @@ public class JwtService {
     }
 
     public String extractEmail(String token) {
+        return getClaims(token).getSubject();
+    }
 
+    public String extractRole(String token) {
+        return (String) getClaims(token).get("role");
+    }
+
+    private Claims getClaims(String token) {
         return Jwts.parser()
                 .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
-                .getPayload()
-                .getSubject();
+                .getPayload();
     }
 }
