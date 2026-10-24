@@ -10,6 +10,13 @@ pipeline {
         }
 
         stage('Build Backend') {
+            when {
+                anyOf {
+                    branch 'master'
+                    expression { env.BRANCH_NAME == 'master' }
+                    expression { env.GIT_BRANCH != null && env.GIT_BRANCH ==~ /(origin\/)?master/ }
+                }
+            }
             steps {
                 dir('jobportal-backend') {
                     sh 'chmod +x mvnw'
@@ -19,6 +26,13 @@ pipeline {
         }
 
         stage('Build Docker Images') {
+            when {
+                anyOf {
+                    branch 'master'
+                    expression { env.BRANCH_NAME == 'master' }
+                    expression { env.GIT_BRANCH != null && env.GIT_BRANCH ==~ /(origin\/)?master/ }
+                }
+            }
             steps {
                 sh 'docker build -t venom45/jobportal-backend:latest jobportal-backend'
                 sh 'docker build -t venom45/jobportal-frontend:latest jobportal-frontend'
@@ -26,6 +40,13 @@ pipeline {
         }
 
         stage('Push Docker Images') {
+            when {
+                anyOf {
+                    branch 'master'
+                    expression { env.BRANCH_NAME == 'master' }
+                    expression { env.GIT_BRANCH != null && env.GIT_BRANCH ==~ /(origin\/)?master/ }
+                }
+            }
             steps {
                 withCredentials([
                     usernamePassword(
@@ -42,6 +63,13 @@ pipeline {
         }
 
         stage('Deploy to EC2') {
+            when {
+                anyOf {
+                    branch 'master'
+                    expression { env.BRANCH_NAME == 'master' }
+                    expression { env.GIT_BRANCH != null && env.GIT_BRANCH ==~ /(origin\/)?master/ }
+                }
+            }
             steps {
                 sh '''
                     docker pull venom45/jobportal-backend:latest

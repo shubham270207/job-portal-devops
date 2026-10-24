@@ -3,6 +3,8 @@ package com.jobportal.config;
 import com.jobportal.auth.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -13,6 +15,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
@@ -28,9 +31,27 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/users/**").authenticated()
-                        .requestMatchers("/api/jobs/**").authenticated()
-                        .requestMatchers("/api/applications/**").authenticated()
+
+                        // Admin-only: create and delete jobs
+                        .requestMatchers(HttpMethod.POST, "/api/jobs").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/jobs/**").hasRole("ADMIN")
+
+                        // Admin-only: update application status
+                        .requestMatchers(HttpMethod.PUT, "/api/applications/*/status").hasRole("ADMIN")
+
+                        // Admin-only: view all applications (GET /api/applications without path params)
+                        .requestMatchers(HttpMethod.GET, "/api/applications").hasRole("ADMIN")
+
+                        // Admin-only: user management
+                        .requestMatchers("/api/users/**").hasRole("ADMIN")
+
+                        // All authenticated users: view jobs, apply, view own applications
+                        .requestMatchers(HttpMethod.GET, "/api/jobs/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/applications").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/applications/user/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/applications/job/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/applications/**").authenticated()
+
                         .anyRequest().authenticated()
                 )
 
@@ -47,12 +68,11 @@ public class SecurityConfig {
 
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(
+        configuration.setAllowedOriginPatterns(
                 List.of(
-                        "http://localhost:5173",
-                        "http://localhost:3000",
-                        "http://13.60.232.53:3000",
-                        "http://13.60.232.53:32650"
+                        "http://localhost:*",
+                        "http://127.0.0.1:*",
+                        "http://13.60.232.53:*"
                 )
         );
 
@@ -76,4 +96,4 @@ public class SecurityConfig {
 
         return source;
     }
-}
+}
