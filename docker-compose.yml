@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: jobportal-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - jobportal-network
+
+  backend:
+    image: venom45/jobportal-backend:latest
+    container_name: jobportal-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_MONGODB_URI=mongodb://mongodb:27017/jobportal
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/jobportal
+    depends_on:
+      - mongodb
+    networks:
+      - jobportal-network
+
+  frontend:
+    image: venom45/jobportal-frontend:latest
+    container_name: jobportal-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - jobportal-network
+
+volumes:
+  mongo-data:
+
+networks:
+  jobportal-network:
+    driver: bridge
